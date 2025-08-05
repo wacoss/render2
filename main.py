@@ -1,53 +1,72 @@
-import os
-import re
-import json
+from flask import Flask, jsonify
 import requests
-from google.oauth2 import service_account
+import re
+import os
+import json
+from google.oauth2.service_account import Credentials
 from googleapiclient.discovery import build
-from flask import Flask
 
 app = Flask(__name__)
 
-# Variables de entorno
-FIRECRAWL_API_KEY = os.environ.get("FIRECRAWL_API_KEY")
-SERVICE_ACCOUNT_INFO = json.loads(os.environ.get("GOOGLE_SERVICE_ACCOUNT"))
+# === CONFIGURACIÓN ===
+FIRECRAWL_API_KEY = os.getenv("FIRECRAWL_API_KEY")  # Usa variables de entorno en Render
 SPREADSHEET_ID = "1a6nuphKrFi8mpGm_y0dCK6AM729h_F8OYD3i91VxOHA"
-RANGE = "A2"
+RANGE_NAME = "A2"
 
-# Autenticación con Google Sheets
-credentials = service_account.Credentials.from_service_account_info(
-    SERVICE_ACCOUNT_INFO,
-    scopes=["https://www.googleapis.com/auth/spreadsheets"]
-)
-sheets_service = build("sheets", "v4", credentials=credentials)
+# === FUNCIONES AUXILIARES ===
 
 def extract_token_from_html(html):
-    match = re.search(r'access_token\s*[:=]\s*[\'"]([A-Za-z0-9\-_\.]+)[\'"]', html)
-    if match:
-        return match.group(1)
-    return None
+    match = re.search(r'access_token[\'"=: ]+[\'"]?([A-Za-z0-9\-_\.]+)[\'"]?', html)
+    return match.group(1) if match else None
+
+def get_token_from_firecrawl():
+    url = "https://api.firecrawl.dev/v1/scrape-url"
+    headers = {
+        "Authorization": f"Bearer {FIRECRAWL_API_KEY}",
+        "Content-Type": "application/json"
+    }
+    body = {
+        "url": "https://www.tvn.cl/en-vivo",
+        "formats": ["rawHtml"],
+        "only_main_content": True,
+        "include_tags": ["access_token"],
+        "parse_pdf": False,
+        "max_age": 14400000
+    }
+    response = requests.post(url, headers=headers, data=json.dumps(body))
+    data = response.json()
+    html = data.get("rawHtml", "")
+    return extract_token_from_html(html)
+
+def save_token_to_sheets(token):
+    SCOPES = ["https://www.googleapis.com/auth/spreadsheets"]
+    SERVICE_ACCOUNT_INFO = json.loads(os.getenv("GOOGLE_SERVICE_ACCOUNT"))
+    creds = Credentials.from_service_account_info(SERVICE_ACCOUNT_INFO, scopes=SCOPES)
+    service = build("sheets", "v4", credentials=creds)
+    sheet = service.spreadsheets()
+    sheet.values().update(
+        spreadsheetId=SPREADSHEET_ID,
+        range=RANGE_NAME,
+        valueInputOption="RAW",
+        body={"values": [[token]]}
+    ).execute()
+
+# === RUTAS ===
+
+@app.route("/")
+def home():
+    return "✅ Servicio funcionando. Usa /token para obtener el token."
 
 @app.route("/token")
-def get_token():
+def token():
     try:
-        response = requests.get(
-            "https://www.tvn.cl/en-vivo",
-            headers={"Authorization": f"Bearer {FIRECRAWL_API_KEY}"}
-        )
-        html = response.text
-        token = extract_token_from_html(html)
-        if token:
-            sheets_service.spreadsheets().values().update(
-                spreadsheetId=SPREADSHEET_ID,
-                range=RANGE,
-                valueInputOption="RAW",
-                body={"values": [[token]]}
-            ).execute()
-            return json.dumps({"status": "ok", "token": token})
-        else:
-            return json.dumps({"status": "error", "message": "Token no encontrado"}), 500
+        token = get_token_from_firecrawl()
+        if not token:
+            return jsonify({"status": "error", "message": "Token no encontrado"}), 500
+        save_token_to_sheets(token)
+        return jsonify({"status": "ok", "token": token})
     except Exception as e:
-        return json.dumps({"status": "error", "message": str(e)}), 500
+        return jsonify({"status": "error", "message": str(e)}), 500
 
 if __name__ == "__main__":
-    app.run(host="0.0.0.0", port=int(os.environ.get("PORT", 5000)))
+    app.run(host="0.0.0.0", port=10000)
