@@ -1,4 +1,4 @@
 Flask
-requests
 google-api-python-client
 google-auth
+firecrawl-py
