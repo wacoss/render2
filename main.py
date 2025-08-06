@@ -74,33 +74,3 @@ def token():
 
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=10000)
-
-
-
-
-
-
-
-
-def get_token_from_firecrawl():
-    url = "https://api.firecrawl.dev/v1/scrape-url"
-    headers = {
-        "Authorization": f"Bearer {FIRECRAWL_API_KEY}",
-        "Content-Type": "application/json"
-    }
-    body = {
-        "url": "https://www.tvn.cl/en-vivo",
-        "formats": ["rawHtml"],
-        "only_main_content": True,
-        "include_tags": ["access_token"],
-        "parse_pdf": False,
-        "max_age": 14400000
-    }
-    response = requests.post(url, headers=headers, data=json.dumps(body))
-    
-    print(">>> Firecrawl status:", response.status_code)
-    print(">>> Firecrawl response text:", response.text[:500])  # Solo muestra los primeros 500 caracteres
-
-    data = response.json()  # <-- Aquí está el error si no es JSON
-    html = data.get("rawHtml", "")
-    return extract_token_from_html(html)
