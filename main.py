@@ -21,7 +21,6 @@ def extract_token_from_html(html):
 
 def get_token_from_firecrawl():
     url = "https://api.firecrawl.dev/v1/scrape-url"
-    
     headers = {
         "Authorization": f"Bearer {FIRECRAWL_API_KEY}",
         "Content-Type": "application/json"
@@ -29,20 +28,18 @@ def get_token_from_firecrawl():
     body = {
         "url": "https://www.tvn.cl/en-vivo",
         "formats": ["rawHtml"],
-        "only_main_content": True,
-        "include_tags": ["access_token"],
-        "parse_pdf": False,
-        "max_age": 14400000
+        "only_main_content": False
     }
 
     response = requests.post(url, headers=headers, data=json.dumps(body))
 
     print(">>> Firecrawl status:", response.status_code)
     print(">>> Firecrawl headers:", response.headers)
-    print(">>> Firecrawl text (primeros 500 caracteres):", response.text[:500])
+    print(">>> Firecrawl response text:", response.text[:500])
 
-    if "application/json" not in response.headers.get("Content-Type", ""):
-        raise Exception("La respuesta no es JSON. Recibido: " + response.headers.get("Content-Type", ""))
+    content_type = response.headers.get("Content-Type", "")
+    if "application/json" not in content_type:
+        raise ValueError(f"La respuesta no es JSON. Recibido: {content_type}")
 
     data = response.json()
     html = data.get("rawHtml", "")
