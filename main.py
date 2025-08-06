@@ -20,7 +20,8 @@ def extract_token_from_html(html):
     return match.group(1) if match else None
 
 def get_token_from_firecrawl():
-    url = "https://api.firecrawl.dev/scrape-url"
+    url = "https://api.firecrawl.dev/v1/scrape-url"
+    
     headers = {
         "Authorization": f"Bearer {FIRECRAWL_API_KEY}",
         "Content-Type": "application/json"
