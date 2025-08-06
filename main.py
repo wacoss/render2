@@ -9,7 +9,7 @@ from googleapiclient.discovery import build
 app = Flask(__name__)
 
 # === CONFIGURACIÓN ===
-FIRECRAWL_API_KEY = os.getenv("FIRECRAWL_API_KEY")  # Usa variables de entorno en Render
+FIRECRAWL_API_KEY = os.getenv("FIRECRAWL_API_KEY")
 SPREADSHEET_ID = "1a6nuphKrFi8mpGm_y0dCK6AM729h_F8OYD3i91VxOHA"
 RANGE_NAME = "A2"
 
@@ -21,7 +21,6 @@ def extract_token_from_html(html):
 
 def get_token_from_firecrawl():
     url = "https://api.firecrawl.dev/scrape-url"
-
     headers = {
         "Authorization": f"Bearer {FIRECRAWL_API_KEY}",
         "Content-Type": "application/json"
@@ -34,12 +33,17 @@ def get_token_from_firecrawl():
         "parse_pdf": False,
         "max_age": 14400000
     }
-    response = requests.post(url, headers=headers, data=json.dumps(body))
-    
-    print(">>> Firecrawl status:", response.status_code)
-    print(">>> Firecrawl response text:", response.text[:500])  # Solo muestra los primeros 500 caracteres
 
-    data = response.json()  # <-- Aquí está el error si no es JSON
+    response = requests.post(url, headers=headers, data=json.dumps(body))
+
+    print(">>> Firecrawl status:", response.status_code)
+    print(">>> Firecrawl headers:", response.headers)
+    print(">>> Firecrawl text (primeros 500 caracteres):", response.text[:500])
+
+    if "application/json" not in response.headers.get("Content-Type", ""):
+        raise Exception("La respuesta no es JSON. Recibido: " + response.headers.get("Content-Type", ""))
+
+    data = response.json()
     html = data.get("rawHtml", "")
     return extract_token_from_html(html)
 
