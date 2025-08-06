@@ -1,8 +1,8 @@
 from flask import Flask, jsonify
-import asyncio
 import os
 import json
 import re
+import asyncio
 from firecrawl import AsyncFirecrawlApp
 from google.oauth2.service_account import Credentials
 from googleapiclient.discovery import build
@@ -14,13 +14,28 @@ FIRECRAWL_API_KEY = os.getenv("FIRECRAWL_API_KEY")
 SPREADSHEET_ID = "1a6nuphKrFi8mpGm_y0dCK6AM729h_F8OYD3i91VxOHA"
 RANGE_NAME = "A2"
 
-# === FUNCIONES AUXILIARES ===
+# === FUNCIONES ===
 
 def extract_token_from_html(html):
-    match = re.search(r'access_token[\'"=: ]+[\'"]?([A-Za-z0-9\-_\.]+)[\'"]?', html)
-    return match.group(1) if match else None
+    """Extrae el token usando múltiples patrones"""
+    patterns = [
+        r'access_token["\']?\s*[:=]\s*["\']([A-Za-z0-9\-_\.]{20,})["\']',
+        r'"access_token"\s*:\s*"([^"]+)"',
+        r'accessToken["\']?\s*[:=]\s*["\']([A-Za-z0-9\-_\.]{20,})["\']',
+        r'token["\']?\s*[:=]\s*["\']([A-Za-z0-9\-_\.]{30,})["\']',
+        r'Bearer\s+([A-Za-z0-9\-_\.]{20,})',
+        r'authorization["\']?\s*[:=]\s*["\']Bearer\s+([^"\']+)["\']',
+        r'["\']([A-Za-z0-9\-_\.]{50,})["\']',
+    ]
+    for pattern in patterns:
+        matches = re.findall(pattern, html, re.IGNORECASE)
+        if matches:
+            for match in matches:
+                if len(match) >= 20 and not match.isdigit():
+                    return match
+    return None
 
-async def async_get_token_from_firecrawl():
+async def get_token_from_firecrawl():
     app = AsyncFirecrawlApp(api_key=FIRECRAWL_API_KEY)
     response = await app.scrape_url(
         url='https://www.tvn.cl/en-vivo',
@@ -30,11 +45,8 @@ async def async_get_token_from_firecrawl():
         parse_pdf=False,
         max_age=14400000
     )
-    html = response.get("rawHtml", "")
+    html = response.rawHtml
     return extract_token_from_html(html)
-
-def get_token_from_firecrawl():
-    return asyncio.run(async_get_token_from_firecrawl())
 
 def save_token_to_sheets(token):
     SCOPES = ["https://www.googleapis.com/auth/spreadsheets"]
@@ -58,7 +70,7 @@ def home():
 @app.route("/token")
 def token():
     try:
-        token = get_token_from_firecrawl()
+        token = asyncio.run(get_token_from_firecrawl())
         if not token:
             return jsonify({"status": "error", "message": "Token no encontrado"}), 500
         save_token_to_sheets(token)
