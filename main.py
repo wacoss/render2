@@ -1,8 +1,9 @@
 from flask import Flask, jsonify
-import requests
-import re
+import asyncio
 import os
 import json
+import re
+from firecrawl import AsyncFirecrawlApp
 from google.oauth2.service_account import Credentials
 from googleapiclient.discovery import build
 
@@ -19,31 +20,21 @@ def extract_token_from_html(html):
     match = re.search(r'access_token[\'"=: ]+[\'"]?([A-Za-z0-9\-_\.]+)[\'"]?', html)
     return match.group(1) if match else None
 
-def get_token_from_firecrawl():
-    url = "https://api.firecrawl.dev/v1/scrape-url"
-    headers = {
-        "Authorization": f"Bearer {FIRECRAWL_API_KEY}",
-        "Content-Type": "application/json"
-    }
-    body = {
-        "url": "https://www.tvn.cl/en-vivo",
-        "formats": ["rawHtml"],
-        "only_main_content": False
-    }
-
-    response = requests.post(url, headers=headers, data=json.dumps(body))
-
-    print(">>> Firecrawl status:", response.status_code)
-    print(">>> Firecrawl headers:", response.headers)
-    print(">>> Firecrawl response text:", response.text[:500])
-
-    content_type = response.headers.get("Content-Type", "")
-    if "application/json" not in content_type:
-        raise ValueError(f"La respuesta no es JSON. Recibido: {content_type}")
-
-    data = response.json()
-    html = data.get("rawHtml", "")
+async def async_get_token_from_firecrawl():
+    app = AsyncFirecrawlApp(api_key=FIRECRAWL_API_KEY)
+    response = await app.scrape_url(
+        url='https://www.tvn.cl/en-vivo',
+        formats=['rawHtml'],
+        only_main_content=True,
+        include_tags=['access_token'],
+        parse_pdf=False,
+        max_age=14400000
+    )
+    html = response.get("rawHtml", "")
     return extract_token_from_html(html)
+
+def get_token_from_firecrawl():
+    return asyncio.run(async_get_token_from_firecrawl())
 
 def save_token_to_sheets(token):
     SCOPES = ["https://www.googleapis.com/auth/spreadsheets"]
