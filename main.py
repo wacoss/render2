@@ -38,7 +38,7 @@ def extract_token_from_html(html):
 async def get_token_from_firecrawl():
     app = AsyncFirecrawlApp(api_key=FIRECRAWL_API_KEY)
     response = await app.scrape_url(
-        url='https://www.tvn.cl/en-vivo',
+        url='https://www.tvn.cl',
         formats=['rawHtml'],
         only_main_content=True,
         include_tags=['access_token'],
