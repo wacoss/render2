@@ -10,7 +10,7 @@ from googleapiclient.discovery import build
 app = Flask(__name__)
 
 # === CONFIGURACIÓN ===
-FIRECRAWL_API_KEY = os.getenv("fc-1b0b66e4c57641d28405ac2b7308759a")
+FIRECRAWL_API_KEY = os.getenv("FIRECRAWL_API_KEY")
 SPREADSHEET_ID = "1a6nuphKrFi8mpGm_y0dCK6AM729h_F8OYD3i91VxOHA"
 RANGE_NAME = "A2"
 
