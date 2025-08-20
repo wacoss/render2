@@ -18,10 +18,10 @@ RANGE_NAME = "A2"
 def extract_token_from_html(html):
     """Extrae el token usando múltiples patrones"""
     patterns = [
-        r'access_token["\']?\s*[:=]\s*["\']([A-Za-z0-9\-_\.]{20,})["\']',
+        r'access_token["\']?\s*[:=]\s*[\'"]([A-Za-z0-9\-_\.]{20,})[\'"]',  # acepta comillas simples o dobles
         r'"access_token"\s*:\s*"([^"]+)"',
-        r'accessToken["\']?\s*[:=]\s*["\']([A-Za-z0-9\-_\.]{20,})["\']',
-        r'token["\']?\s*[:=]\s*["\']([A-Za-z0-9\-_\.]{30,})["\']',
+        r"accessToken['\"]?\s*[:=]\s*['\"]([A-Za-z0-9\-_\.]{20,})['\"]",
+        r"token['\"]?\s*[:=]\s*['\"]([A-Za-z0-9\-_\.]{30,})['\"]",
         r'Bearer\s+([A-Za-z0-9\-_\.]{20,})',
         r'authorization["\']?\s*[:=]\s*["\']Bearer\s+([^"\']+)["\']',
         r'["\']([A-Za-z0-9\-_\.]{50,})["\']',
