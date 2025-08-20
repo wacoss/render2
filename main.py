@@ -36,7 +36,7 @@ def get_token_from_firecrawl():
     }
     
     headers = {
-        "Authorization": f"Bearer {os.getenv('fc-1b0b66e4c57641d28405ac2b7308759a')}",
+        "Authorization": f"Bearer {os.getenv('FIRECRAWL_API_KEY')}",
         "Content-Type": "application/json"
     }
     
