@@ -2,7 +2,8 @@ from flask import Flask, jsonify
 import os
 import json
 import re
-import requests
+import asyncio
+from firecrawl import AsyncFirecrawlApp
 from google.oauth2.service_account import Credentials
 from googleapiclient.discovery import build
 
@@ -14,18 +15,18 @@ SPREADSHEET_ID = "1a6nuphKrFi8mpGm_y0dCK6AM729h_F8OYD3i91VxOHA"
 RANGE_NAME = "A2"
 
 # === FUNCIONES ===
-
 def extract_token_from_html(html):
     """Extrae el token usando múltiples patrones"""
     patterns = [
-        r'access_token["\']?\s*[:=]\s*[\'"]([A-Za-z0-9\-_\.]{20,})[\'"]',  # acepta comillas simples o dobles
+        r'access_token["\']?\s*[:=]\s*["\']([A-Za-z0-9\-_\.]{20,})["\']',
         r'"access_token"\s*:\s*"([^"]+)"',
-        r"accessToken['\"]?\s*[:=]\s*['\"]([A-Za-z0-9\-_\.]{20,})['\"]",
-        r"token['\"]?\s*[:=]\s*['\"]([A-Za-z0-9\-_\.]{30,})['\"]",
+        r'accessToken["\']?\s*[:=]\s*["\']([A-Za-z0-9\-_\.]{20,})["\']',
+        r'token["\']?\s*[:=]\s*["\']([A-Za-z0-9\-_\.]{30,})["\']',
         r'Bearer\s+([A-Za-z0-9\-_\.]{20,})',
         r'authorization["\']?\s*[:=]\s*["\']Bearer\s+([^"\']+)["\']',
         r'["\']([A-Za-z0-9\-_\.]{50,})["\']',
     ]
+    
     for pattern in patterns:
         matches = re.findall(pattern, html, re.IGNORECASE)
         if matches:
@@ -34,25 +35,17 @@ def extract_token_from_html(html):
                     return match
     return None
 
-def get_token_from_firecrawl():
-    url = "https://api.firecrawl.dev/v2/scrape"
-    payload = {
-        "url": "https://live.tvn.cl",
-        "onlyMainContent": True,
-        "includeTags": ["access_token"],
-        "maxAge": 172800000,  # 2 días en ms
-        "formats": ["rawHtml"]
-    }
-    headers = {
-        "Authorization": f"Bearer {FIRECRAWL_API_KEY}",
-        "Content-Type": "application/json"
-    }
-
-    response = requests.post(url, json=payload, headers=headers)
-    data = response.json()
-
-    # Firecrawl devuelve rawHtml dentro de la respuesta
-    html = data.get("rawHtml") or ""
+async def get_token_from_firecrawl():
+    app_client = AsyncFirecrawlApp(api_key=FIRECRAWL_API_KEY)
+    response = await app_client.scrape_url(
+        url='https://live.tvn.cl',
+        formats=['rawHtml'],
+        only_main_content=True,
+        include_tags=['access_token'],
+        parse_pdf=False,
+        max_age=14400000
+    )
+    html = response.rawHtml
     return extract_token_from_html(html)
 
 def save_token_to_sheets(token):
@@ -69,7 +62,6 @@ def save_token_to_sheets(token):
     ).execute()
 
 # === RUTAS ===
-
 @app.route("/")
 def home():
     return "✅ Servicio funcionando. Usa /token para obtener el token."
@@ -77,9 +69,10 @@ def home():
 @app.route("/token")
 def token():
     try:
-        token = get_token_from_firecrawl()
+        token = asyncio.run(get_token_from_firecrawl())
         if not token:
             return jsonify({"status": "error", "message": "Token no encontrado"}), 500
+        
         save_token_to_sheets(token)
         return jsonify({"status": "ok", "token": token})
     except Exception as e:
