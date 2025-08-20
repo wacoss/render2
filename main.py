@@ -2,8 +2,14 @@ from flask import Flask, jsonify
 import os
 import re
 import requests
+import json
+from google.oauth2.service_account import Credentials
+from googleapiclient.discovery import build
 
 app = Flask(__name__)
+
+SPREADSHEET_ID = "1a6nuphKrFi8mpGm_y0dCK6AM729h_F8OYD3i91VxOHA"
+RANGE_NAME = "A2"
 
 def extract_token_from_html(html):
     patterns = [
@@ -56,6 +62,19 @@ def get_token_from_firecrawl():
     
     return extract_token_from_html(html)
 
+def save_token_to_sheets(token):
+    SCOPES = ["https://www.googleapis.com/auth/spreadsheets"]
+    SERVICE_ACCOUNT_INFO = json.loads(os.getenv("GOOGLE_SERVICE_ACCOUNT"))
+    creds = Credentials.from_service_account_info(SERVICE_ACCOUNT_INFO, scopes=SCOPES)
+    service = build("sheets", "v4", credentials=creds)
+    sheet = service.spreadsheets()
+    sheet.values().update(
+        spreadsheetId=SPREADSHEET_ID,
+        range=RANGE_NAME,
+        valueInputOption="RAW",
+        body={"values": [[token]]}
+    ).execute()
+
 @app.route("/")
 def home():
     return "Servicio funcionando. Usa /token para obtener el token."
@@ -66,6 +85,9 @@ def token():
         token = get_token_from_firecrawl()
         if not token:
             return jsonify({"status": "error", "message": "Token no encontrado"}), 500
+        
+        # Guardar token en Google Sheets
+        save_token_to_sheets(token)
         
         return jsonify({"status": "ok", "token": token})
     except Exception as e:
